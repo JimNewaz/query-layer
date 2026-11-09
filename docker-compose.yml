@@ -1,0 +1,55 @@
+# Local dev + self-host top-level compose for QueryLayer (PLAN.md §13)
+# - app:      Laravel + artisan serve (dev)
+# - postgres: QueryLayer's OWN state store (connections, registry, history...)
+# - mysql:    optional test fixture database for external-DB work, disable by default
+services:
+  app:
+    build: ./docker/app
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: [php, artisan, serve, --host, 0.0.0.0, --port, "8000"]
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: querylayer
+      POSTGRES_USER: querylayer
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "54320:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U querylayer -d querylayer]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Bring up with: docker compose --profile mysql up -d
+  mysql:
+    image: mysql:9.4
+    profiles: [mysql]
+    environment:
+      MYSQL_DATABASE: ecommerce
+      MYSQL_USER: querylayer
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root_secret
+    ports:
+      - "33060:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: [mysqladmin, ping, -h, localhost, -uquerylayer, -psecret]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pg_data: {}
+  mysql_data: {}
